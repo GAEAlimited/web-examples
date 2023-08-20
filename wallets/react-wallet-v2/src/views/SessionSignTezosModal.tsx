@@ -4,16 +4,16 @@ import RequesDetailsCard from '@/components/RequestDetalilsCard'
 import RequestMethodCard from '@/components/RequestMethodCard'
 import RequestModalContainer from '@/components/RequestModalContainer'
 import ModalStore from '@/store/ModalStore'
-import { approveEIP155Request, rejectEIP155Request } from '@/utils/EIP155RequestHandlerUtil'
-import { getSignTypedDataParamsData } from '@/utils/HelperUtil'
-import { legacySignClient } from '@/utils/LegacyWalletConnectUtil'
+import { styledToast } from '@/utils/HelperUtil'
+import { approveTezosRequest, rejectTezosRequest } from '@/utils/TezosRequestHandlerUtil'
+import { signClient } from '@/utils/WalletConnectUtil'
 import { Button, Divider, Modal, Text } from '@nextui-org/react'
 import { Fragment } from 'react'
 
-export default function LegacySessionSignTypedDataModal() {
+export default function SessionSignTezosModal() {
   // Get request and wallet data from store
-  const requestEvent = ModalStore.state.data?.legacyCallRequestEvent
-  const requestSession = ModalStore.state.data?.legacyRequestSession
+  const requestEvent = ModalStore.state.data?.requestEvent
+  const requestSession = ModalStore.state.data?.requestSession
 
   // Ensure request and wallet are defined
   if (!requestEvent || !requestSession) {
@@ -21,24 +21,22 @@ export default function LegacySessionSignTypedDataModal() {
   }
 
   // Get required request data
-  const { id, method, params } = requestEvent
-
-  // Get data
-  const data = getSignTypedDataParamsData(params)
+  const { topic, params } = requestEvent
+  const { request, chainId } = params
 
   // Handle approve action (logic varies based on request method)
   async function onApprove() {
     if (requestEvent) {
-      const { result } = await approveEIP155Request({
-        id,
-        topic: '',
-        params: { request: { method, params }, chainId: '1' }
-      })
-
-      legacySignClient.approveRequest({
-        id,
-        result
-      })
+      const response = await approveTezosRequest(requestEvent)
+      try {
+        await signClient.respond({
+          topic,
+          response
+        })
+      } catch (e) {
+        styledToast((e as Error).message, 'error')
+        return
+      }
       ModalStore.close()
     }
   }
@@ -46,38 +44,36 @@ export default function LegacySessionSignTypedDataModal() {
   // Handle reject action
   async function onReject() {
     if (requestEvent) {
-      const { error } = rejectEIP155Request({
-        id,
-        topic: '',
-        params: { request: { method, params }, chainId: '1' }
-      })
-      legacySignClient.rejectRequest({
-        id,
-        error
-      })
+      const response = rejectTezosRequest(requestEvent)
+      try {
+        await signClient.respond({
+          topic,
+          response
+        })
+      } catch (e) {
+        styledToast((e as Error).message, 'error')
+        return
+      }
       ModalStore.close()
     }
   }
 
   return (
     <Fragment>
-      <RequestModalContainer title="Sign Typed Data">
-        <ProjectInfoCard metadata={requestSession.peerMeta!} />
+      <RequestModalContainer title="Sign Message">
+        <ProjectInfoCard metadata={requestSession.peer.metadata} />
 
         <Divider y={2} />
 
-        <RequesDetailsCard
-          chains={['eip155:' + legacySignClient.chainId]}
-          protocol={legacySignClient.protocol}
-        />
+        <RequesDetailsCard chains={[chainId ?? '']} protocol={requestSession.relay.protocol} />
 
         <Divider y={2} />
 
-        <RequestDataCard data={data} />
+        <RequestDataCard data={params} />
 
         <Divider y={2} />
 
-        <RequestMethodCard methods={[method]} />
+        <RequestMethodCard methods={[request.method]} />
       </RequestModalContainer>
 
       <Modal.Footer>

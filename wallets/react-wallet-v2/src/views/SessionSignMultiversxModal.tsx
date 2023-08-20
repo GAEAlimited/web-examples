@@ -4,12 +4,16 @@ import RequesDetailsCard from '@/components/RequestDetalilsCard'
 import RequestMethodCard from '@/components/RequestMethodCard'
 import RequestModalContainer from '@/components/RequestModalContainer'
 import ModalStore from '@/store/ModalStore'
-import { approveElrondRequest, rejectElrondRequest } from '@/utils/ElrondRequestHandlerUtil'
-import { web3wallet } from '@/utils/WalletConnectUtil'
+import { styledToast } from '@/utils/HelperUtil'
+import {
+  approveMultiversxRequest,
+  rejectMultiversxRequest
+} from '@/utils/MultiversxRequestHandlerUtil'
+import { signClient } from '@/utils/WalletConnectUtil'
 import { Button, Divider, Modal, Text } from '@nextui-org/react'
 import { Fragment } from 'react'
 
-export default function SessionSignElrondModal() {
+export default function SessionSignMultiversxModal() {
   // Get request and wallet data from store
   const requestEvent = ModalStore.state.data?.requestEvent
   const requestSession = ModalStore.state.data?.requestSession
@@ -26,11 +30,16 @@ export default function SessionSignElrondModal() {
   // Handle approve action (logic varies based on request method)
   async function onApprove() {
     if (requestEvent) {
-      const response = await approveElrondRequest(requestEvent)
-      await web3wallet.respondSessionRequest({
-        topic,
-        response
-      })
+      const response = await approveMultiversxRequest(requestEvent)
+      try {
+        await signClient.respond({
+          topic,
+          response
+        })
+      } catch (e) {
+        styledToast((e as Error).message, 'error')
+        return
+      }
       ModalStore.close()
     }
   }
@@ -38,11 +47,16 @@ export default function SessionSignElrondModal() {
   // Handle reject action
   async function onReject() {
     if (requestEvent) {
-      const response = rejectElrondRequest(requestEvent)
-      await web3wallet.respondSessionRequest({
-        topic,
-        response
-      })
+      const response = rejectMultiversxRequest(requestEvent)
+      try {
+        await signClient.respond({
+          topic,
+          response
+        })
+      } catch (e) {
+        styledToast((e as Error).message, 'error')
+        return
+      }
       ModalStore.close()
     }
   }

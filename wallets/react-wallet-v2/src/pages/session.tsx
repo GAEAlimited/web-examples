@@ -1,11 +1,13 @@
 import PageHeader from '@/components/PageHeader'
 import ProjectInfoCard from '@/components/ProjectInfoCard'
 import SessionChainCard from '@/components/SessionChainCard'
+import SettingsStore from '@/store/SettingsStore'
 import { signClient } from '@/utils/WalletConnectUtil'
 import { Button, Divider, Loading, Row, Text } from '@nextui-org/react'
 import { getSdkError } from '@walletconnect/utils'
 import { useRouter } from 'next/router'
 import { Fragment, useEffect, useState } from 'react'
+import { useSnapshot } from 'valtio'
 
 /**
  * Component
@@ -15,6 +17,8 @@ export default function SessionPage() {
   const [updated, setUpdated] = useState(new Date())
   const { query, replace } = useRouter()
   const [loading, setLoading] = useState(false)
+
+  const { activeChainId } = useSnapshot(SettingsStore.state);
 
   useEffect(() => {
     if (query?.topic) {
@@ -48,35 +52,34 @@ export default function SessionPage() {
 
   async function onSessionEmit() {
     setLoading(true)
-    console.log('baleg')
     await signClient.emit({
       topic,
       event: { name: 'chainChanged', data: 'Hello World' },
-      chainId: 'eip155:1'
+      chainId: activeChainId.toString() // chainId: 'eip155:1'
     })
     setLoading(false)
   }
 
-  const newNs = {
-    eip155: {
-      accounts: [
-        'eip155:1:0x70012948c348CBF00806A3C79E3c5DAdFaAa347B',
-        'eip155:137:0x70012948c348CBF00806A3C79E3c5DAdFaAa347B'
-      ],
-      methods: [
-        'eth_sendTransaction',
-        'eth_signTransaction',
-        'eth_sign',
-        'personal_sign',
-        'eth_signTypedData'
-      ],
-      events: ['chainChanged', 'accountsChanged']
-    }
-  }
-
   async function onSessionUpdate() {
     setLoading(true)
-    const { acknowledged } = await signClient.update({ topic, namespaces: newNs })
+    const session = signClient.session.get(topic)
+    const baseAddress = '0x70012948c348CBF00806A3C79E3c5DAdFaAa347'
+    const namespaceKeyToUpdate = Object.keys(session?.namespaces)[0]
+    const namespaceToUpdate = session?.namespaces[namespaceKeyToUpdate]
+    const { acknowledged } = await signClient.update({
+      topic,
+      namespaces: {
+        ...session?.namespaces,
+        [namespaceKeyToUpdate]: {
+          ...session?.namespaces[namespaceKeyToUpdate],
+          accounts: namespaceToUpdate.accounts.concat(
+            `${namespaceToUpdate.chains?.[0]}:${baseAddress}${Math.floor(
+              Math.random() * (9 - 1 + 1) + 0
+            )}`
+          ) // generates random number between 0 and 9
+        }
+      }
+    })
     await acknowledged()
     setUpdated(new Date())
     setLoading(false)
@@ -125,7 +128,7 @@ export default function SessionPage() {
         return (
           <Fragment key={chain}>
             <Text h4 css={{ marginBottom: '$5' }}>{`Review ${chain} permissions`}</Text>
-            <SessionChainCard namespace={namespaces[chain]} />
+            <SessionChainCard namespace={namespaces[chain]} data-testid={'session-card' + namespaces[chain]} />
             {/* {renderAccountSelection(chain)} */}
             <Divider y={2} />
           </Fragment>
@@ -143,25 +146,25 @@ export default function SessionPage() {
       </Row>
 
       <Row css={{ marginTop: '$10' }}>
-        <Button flat css={{ width: '100%' }} color="error" onClick={onDeleteSession}>
+        <Button flat css={{ width: '100%' }} color="error" onClick={onDeleteSession} data-testid='session-delete-button'>
           {loading ? <Loading size="sm" color="error" /> : 'Delete'}
         </Button>
       </Row>
 
       <Row css={{ marginTop: '$10' }}>
-        <Button flat css={{ width: '100%' }} color="primary" onClick={onSessionPing}>
+        <Button flat css={{ width: '100%' }} color="primary" onClick={onSessionPing} data-testid='session-ping-button'>
           {loading ? <Loading size="sm" color="primary" /> : 'Ping'}
         </Button>
       </Row>
 
       <Row css={{ marginTop: '$10' }}>
-        <Button flat css={{ width: '100%' }} color="secondary" onClick={onSessionEmit}>
+        <Button flat css={{ width: '100%' }} color="secondary" onClick={onSessionEmit} data-testid='session-emit-button'>
           {loading ? <Loading size="sm" color="secondary" /> : 'Emit'}
         </Button>
       </Row>
 
       <Row css={{ marginTop: '$10' }}>
-        <Button flat css={{ width: '100%' }} color="warning" onClick={onSessionUpdate}>
+        <Button flat css={{ width: '100%' }} color="warning" onClick={onSessionUpdate} data-testid='session-update-button'>
           {loading ? <Loading size="sm" color="warning" /> : 'Update'}
         </Button>
       </Row>
